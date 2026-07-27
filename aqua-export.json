@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "exportedAt": "2026-07-27T11:07:37.906Z",
+  "mode": "sync",
+  "totalTokens": 384607795,
+  "totalMl": 5936975.658500001,
+  "sources": [
+    {
+      "id": "opencode",
+      "label": "opencode",
+      "tokens": 384607795,
+      "files": 1
+    }
+  ],
+  "modelBreakdown": [
+    {
+      "model": "unknown (older sessions)",
+      "tokens": 125510849,
+      "mlPer1k": 15
+    },
+    {
+      "model": "mimo-v2.5-free",
+      "tokens": 125373955,
+      "mlPer1k": 15
+    },
+    {
+      "model": "deepseek-v4-flash-free",
+      "tokens": 84895342,
+      "mlPer1k": 20
+    },
+    {
+      "model": "minimax-m2.5-free",
+      "tokens": 27613616,
+      "mlPer1k": 15
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "tokens": 18297951,
+      "mlPer1k": 1.5
+    },
+    {
+      "model": "qwen3.6-plus-free",
+      "tokens": 1671474,
+      "mlPer1k": 15
+    },
+    {
+      "model": "gemini-2.5-pro",
+      "tokens": 710788,
+      "mlPer1k": 1.5
+    },
+    {
+      "model": "nemotron-3-super-free",
+      "tokens": 533820,
+      "mlPer1k": 15
+    }
+  ],
+  "history": {
+    "totalTokens": 2283360201,
+    "totalMl": 34250403.015,
+    "runCount": 7
+  }
+}

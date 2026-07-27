@@ -199,7 +199,7 @@ function exportCmd(args) {
   }
 
   const oIdx = args.indexOf("-o");
-  const outFile = oIdx !== -1 ? args[oIdx + 1] : null;
+  const outFile = oIdx !== -1 ? args[oIdx + 1] : "aqua-export.json";
 
   const detected = sources.detectSources();
   const available = detected.filter((s) => s.available);
@@ -258,12 +258,8 @@ function exportCmd(args) {
 
   const json = JSON.stringify(data, null, 2);
 
-  if (outFile) {
-    fs.writeFileSync(outFile, json + "\n");
-    console.log(`${c.green}✅ exported${c.reset} → ${outFile}  (${totalTokens.toLocaleString()} tokens, ${modelBreakdown.length} models)`);
-  } else {
-    process.stdout.write(json + "\n");
-  }
+  fs.writeFileSync(outFile, json + "\n");
+  console.log(`${c.green}✅ exported${c.reset} → ${outFile}  (${totalTokens.toLocaleString()} tokens, ${modelBreakdown.length} models)`);
 }
 
 function printHelp() {
@@ -280,7 +276,7 @@ function printHelp() {
                                        read tokens from each tool's CURRENT session
   aqua sync                           same, but sums ALL historical sessions ever logged
   aqua export [--mode sync|auto] [-o file.json]
-                                     export token data as JSON for aqua-web
+                                     export token data as JSON (default: aqua-export.json)
 
 ${c.bold}Visualization${c.reset}
   The container auto-scales with magnitude — small counts fill a glass,

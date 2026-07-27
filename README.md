@@ -131,7 +131,7 @@ aqua reset                          # clear saved history
  aqua auto                           # auto-detect Claude Code / Gemini CLI / opencode,
                                      # sum tokens from each tool's CURRENT session
 aqua sync                           # same, but sums ALL historical sessions ever logged
-aqua export -o data.json            # export token data as JSON for aqua-web
+aqua export                         # writes aqua-export.json in current directory
 ```
 
 `estimate` runs an animated fill in real terminals with a progress bar;
@@ -248,8 +248,8 @@ into the companion web app [aqua-web](https://github.com/YOUR_GITHUB_USERNAME/aq
 for a richer visual experience.
 
 ```bash
-aqua export                         # JSON to stdout
-aqua export -o data.json            # write to file
+aqua export                         # writes aqua-export.json in current directory
+aqua export -o data.json            # write to a custom filename
 aqua export --mode sync -o data.json  # historical (default) or auto (current session)
 ```
 
