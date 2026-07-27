@@ -119,6 +119,12 @@ async function report(tokens, { save = true, label = "", vessel = null, modelBre
   console.log(`${c.dim}(rendered as a ${containerUsed} 🌊 — pass --vessel to force glass/bottle/bathtub/pool)${c.reset}`);
   console.log(`${c.dim}${visuals.pickComparisons(ml)}${c.reset}`);
 
+  // Your Impact on Earth section
+  const impactLines = visuals.buildImpactSection(ml);
+  for (const line of impactLines) {
+    console.log(line);
+  }
+
   if (save) {
     const hist = loadHistory();
     hist.totalTokens += tokens;
