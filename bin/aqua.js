@@ -98,7 +98,7 @@ async function reportFromSources(mode) {
 
   if (available.length === 0) {
     console.log(
-      `${c.yellow}no local usage logs found${c.reset} for Claude Code, Codex CLI, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.codex, ~/.gemini/tmp, ~/.local/share/opencode)${c.reset}\n`
+      `${c.yellow}no local usage logs found${c.reset} for Claude Code, Codex CLI, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.codex, ~/.gemini/tmp, ~/.local/share/opencode/opencode.db)${c.reset}\n`
     );
     return;
   }
