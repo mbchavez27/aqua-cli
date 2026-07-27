@@ -84,8 +84,28 @@ function saveHistory(hist) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(hist, null, 2));
 }
 
-async function report(tokens, { save = true, label = "", vessel = null, modelBreakdown = null } = {}) {
-  const ml = (tokens / 1000) * ML_PER_1K_TOKENS;
+async function report(tokens, { save = true, label = "", vessel = null, modelBreakdown = null, totalMl = null } = {}) {
+  // Single source of truth for water calculation
+  let ml;
+  if (totalMl !== null) {
+    // Use pre-calculated total (from model breakdown)
+    ml = totalMl;
+  } else if (modelBreakdown && modelBreakdown.length > 0) {
+    // Calculate from model breakdown (per-model coefficients)
+    ml = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
+  } else {
+    // Fallback for estimate command (no model breakdown)
+    ml = (tokens / 1000) * ML_PER_1K_TOKENS;
+  }
+
+  // Validation: ensure water totals are consistent
+  if (modelBreakdown && modelBreakdown.length > 0) {
+    const expectedTotal = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
+    if (Math.abs(ml - expectedTotal) > 0.01) {
+      console.error(`${c.yellow}ERROR: Water totals are inconsistent.${c.reset}`);
+      process.exit(1);
+    }
+  }
 
   console.log(`${label ? c.dim + label + c.reset + "\n" : ""}${c.bold}📊 Tokens:${c.reset} ${tokens.toLocaleString()}`);
 
@@ -93,7 +113,6 @@ async function report(tokens, { save = true, label = "", vessel = null, modelBre
   if (modelBreakdown && modelBreakdown.length > 0) {
     const maxModelLen = Math.max(...modelBreakdown.map((r) => r.model.length), 12);
     const numWidth = Math.max(12, String(Math.max(...modelBreakdown.map((r) => r.tokens))).length + 1);
-    const totalMl = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
     const totalTokens = modelBreakdown.reduce((sum, r) => sum + r.tokens, 0);
     const w = maxModelLen + numWidth + 18;
     const sep = "─".repeat(w);
@@ -109,7 +128,7 @@ async function report(tokens, { save = true, label = "", vessel = null, modelBre
     }
     console.log(`  ${c.cyan}├${sep}┤${c.reset}`);
     console.log(
-      `  ${c.cyan}│${c.reset}  ${c.bold}${"Total".padEnd(maxModelLen)}  ${totalTokens.toLocaleString().padStart(numWidth)}  ${totalMl.toFixed(1).padStart(8)} mL  ${c.cyan}│${c.reset}`
+      `  ${c.cyan}│${c.reset}  ${c.bold}${"Total".padEnd(maxModelLen)}  ${totalTokens.toLocaleString().padStart(numWidth)}  ${ml.toFixed(1).padStart(8)} mL  ${c.cyan}│${c.reset}`
     );
     console.log(`  ${c.cyan}└${sep}┘${c.reset}`);
   }
@@ -190,9 +209,13 @@ async function reportFromSources(mode) {
     .map(([model, data]) => ({ model, tokens: data.tokens, mlPer1k: data.mlPer1k }))
     .sort((a, b) => b.tokens - a.tokens);
 
+  // Calculate totalMl from model breakdown (single source of truth)
+  const totalMl = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
+
   await report(totalTokens, {
     label: mode === "sync" ? "combined historical usage, all detected tools 📊" : "combined current-session usage, all detected tools 📊",
     modelBreakdown,
+    totalMl,
   });
 }
 
