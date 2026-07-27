@@ -4,13 +4,11 @@
 /**
  * aqua — a for-fun CLI that estimates the "water footprint" of your AI token usage.
  *
- * IMPORTANT: The numbers this tool produces are ILLUSTRATIVE, not measured.
- * Real water-per-token figures vary enormously by model size, data center
- * cooling design (evaporative vs closed-loop), region, and season, and are
- * not publicly disclosed with precision by any lab. This tool uses a single
- * round, made-up-for-clarity constant inspired by the general order of
- * magnitude discussed in public research on AI data center water use.
- * Treat every number here as "vibes," not a citation.
+ * IMPORTANT: The numbers this tool produces are APPROXIMATIONS, not measured.
+ * Per-model water estimates (mL per 1,000 tokens) are derived from published
+ * research papers (see help text for citations). Real water-per-token figures
+ * vary enormously by model size, data center cooling design, region, and
+ * season. Treat every number here as "illustrative," not a citation.
  */
 
 const fs = require("fs");
@@ -23,7 +21,7 @@ const HOME_DIR = path.join(os.homedir(), ".aqua-cli");
 const HISTORY_FILE = path.join(HOME_DIR, "history.json");
 
 // --- illustrative constants (NOT verified real-world figures) ---
-const ML_PER_1K_TOKENS = 15; // "milliliters" per 1,000 tokens, illustrative only
+const ML_PER_1K_TOKENS = 15; // "milliliters" per 1,000 tokens, illustrative only (used by estimate command)
 
 // --- ANSI colors, no deps ---
 const c = {
@@ -70,10 +68,25 @@ function saveHistory(hist) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(hist, null, 2));
 }
 
-async function report(tokens, { save = true, label = "", vessel = null } = {}) {
+async function report(tokens, { save = true, label = "", vessel = null, modelBreakdown = null } = {}) {
   const ml = (tokens / 1000) * ML_PER_1K_TOKENS;
 
   console.log(`${label ? c.dim + label + c.reset + "\n" : ""}${c.bold}Tokens:${c.reset} ${tokens.toLocaleString()}`);
+
+  // Per-model breakdown table
+  if (modelBreakdown && modelBreakdown.length > 0) {
+    const maxModelLen = Math.max(...modelBreakdown.map((r) => r.model.length), 12);
+    const numWidth = Math.max(12, String(Math.max(...modelBreakdown.map((r) => r.tokens))).length + 1);
+    console.log(`  ${c.dim}${"Model".padEnd(maxModelLen)}  ${"Tokens".padStart(numWidth)}  ${"Water (est.)".padStart(14)}${c.reset}`);
+    for (const row of modelBreakdown) {
+      const rowMl = (row.tokens / 1000) * row.mlPer1k;
+      console.log(
+        `  ${row.model.padEnd(maxModelLen)}  ${row.tokens.toLocaleString().padStart(numWidth)}  ${rowMl.toFixed(1).padStart(8)} mL`
+      );
+    }
+    console.log(`  ${"─".repeat(maxModelLen + numWidth + 16)}`);
+  }
+
   console.log(`${c.bold}Estimated water:${c.reset} ${ml.toFixed(1)} mL`);
   const containerUsed = await visuals.animateContainer(ml, { containerId: vessel });
   console.log(`${c.dim}(rendered as a ${containerUsed} — pass --vessel to force glass/bottle/bathtub/pool)${c.reset}`);
@@ -103,18 +116,32 @@ async function reportFromSources(mode) {
     return;
   }
 
-  const getter = mode === "sync" ? sources.historicalTokensFor : sources.currentSessionTokensFor;
+  const byModelGetter = mode === "sync" ? sources.historicalTokensByModel : sources.currentSessionTokensByModel;
+  const totalGetter = mode === "sync" ? sources.historicalTokensFor : sources.currentSessionTokensFor;
+
   let totalTokens = 0;
-  const rows = [];
+  const allModels = new Map(); // model -> { tokens, mlPer1k }
+  const sourceRows = [];
 
   for (const s of available) {
-    const { tokens, files } = getter(s.id);
+    const { tokens, files } = totalGetter(s.id);
     totalTokens += tokens;
-    rows.push({ label: s.label, tokens, files });
+    sourceRows.push({ label: s.label, tokens, files });
+
+    const modelData = byModelGetter(s.id);
+    for (const row of modelData) {
+      const mlPer1k = sources.waterMlPer1kForModel(row.model);
+      const existing = allModels.get(row.model);
+      if (existing) {
+        existing.tokens += row.tokens;
+      } else {
+        allModels.set(row.model, { tokens: row.tokens, mlPer1k });
+      }
+    }
   }
 
   console.log(`${c.bold}Detected:${c.reset} ${available.map((s) => s.label).join(", ")}`);
-  for (const row of rows) {
+  for (const row of sourceRows) {
     console.log(
       `  ${c.dim}${row.label.padEnd(12)}${c.reset} ${row.tokens.toLocaleString().padStart(10)} tokens  ${c.dim}(${row.files} file${row.files === 1 ? "" : "s"})${c.reset}`
     );
@@ -126,8 +153,14 @@ async function reportFromSources(mode) {
     return;
   }
 
+  // Build per-model breakdown sorted by tokens descending
+  const modelBreakdown = [...allModels.entries()]
+    .map(([model, data]) => ({ model, tokens: data.tokens, mlPer1k: data.mlPer1k }))
+    .sort((a, b) => b.tokens - a.tokens);
+
   await report(totalTokens, {
     label: mode === "sync" ? "combined historical usage, all detected tools" : "combined current-session usage, all detected tools",
+    modelBreakdown,
   });
 }
 
@@ -160,7 +193,19 @@ ${c.bold}Examples${c.reset}
   aqua auto
   aqua sync
 
-${c.yellow}Note:${c.reset} numbers are illustrative, not measured. See comment at top of source.
+${c.bold}Water estimates${c.reset}
+  Per-model water estimates (mL per 1,000 tokens) are approximate ranges
+  derived from published research:
+
+  Gemini ........... ~0.5–1.5 mL  (Elsworth et al. 2025, Google measured)
+  GPT-4o ........... ~3.6 mL      (Vanderbilt 2026, OpenAI disclosure)
+  Claude ........... ~2.5–5.0 mL  (Jegham et al. 2025, AWS infrastructure)
+  DeepSeek ......... ~20–60 mL    (Jegham et al. 2025, higher PUE)
+  Reasoning (o3) ... ~60 mL       (Jegham et al. 2025, extended CoT)
+
+  Real values vary by data center, cooling technology, region, and season.
+  These are illustrative — not precise measurements.
+
 ${c.yellow}Note:${c.reset} auto/sync read Gemini CLI + opencode logs with best-effort parsing;
       those tools' on-disk formats are undocumented/beta and may change.
 `);

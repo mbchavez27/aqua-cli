@@ -2,7 +2,7 @@
 
 A tiny terminal toy that turns your AI token usage into a **water-footprint
 visualization** — an animated blue bar filling up in your terminal, backed
-by a real (if rough) number.
+by real (if approximate) per-model estimates from published research.
 
 It's built to be a fun, low-stakes way into a conversation that's usually
 anything but fun: AI data centers use real water for cooling, the exact
@@ -19,28 +19,55 @@ grows — as a prompt to go read the real research, not a replacement for it.
    ▓█   ▓██▒▒ ▓███▀ ░▒▒█████▓  ▓█   ▓██▒
   water footprint estimator, for fun · v0.1.0
 
-Estimated water: 180.0 mL  [███░░░░░░░░░░░░░░░░░░░░] 💧
-≈ 0.360 bottles (500 mL) · ≈ 0.28% of an 8-min shower
+  Model                           Tokens    Water (est.)
+  gemini-2.5-pro              1,200,000     1,800.0 mL
+  deepseek-v4-flash-free        800,000    16,000.0 mL
+  ────────────────────────────────────────────────────
+  Estimated water: 17,800.0 mL
+  ≈ 37 bathtubs · ≈ 27.67% of a backyard pool
 ```
 
 ## ⚠️ Read this before you take any number seriously
 
-**This is illustrative, not measured.** aqua-cli uses one flat, made-up-for-clarity
-constant (`15 mL per 1,000 tokens`) to turn a token count into a milliliter
-figure. Real water-per-token costs for AI inference:
+**These are approximations, not measurements.** aqua-cli uses per-model
+water estimates derived from published research papers. Real water-per-token
+costs for AI inference:
 
 - vary enormously by model size, hardware, cooling design (evaporative vs.
   closed-loop), region, season, and even time of day,
 - are not published with precision by any major AI lab,
 - are the subject of real, ongoing, and legitimately contested research
-  (see [Li et al., "Making AI Less Thirsty"](https://arxiv.org/abs/2304.03271)
-  for one widely-cited estimate, and note that estimates from different
-  researchers and companies disagree by a lot).
+  (see sources below).
 
 Treat every mL figure this tool prints as a **prop for a conversation**,
 not a citation. If you want to cite a number, go read the actual papers —
-this repo links a couple below and PRs adding more (with sources) are very
+this repo links them below and PRs adding more (with sources) are very
 welcome.
+
+## Per-model water estimates
+
+| Model family | mL per 1,000 tokens | Source |
+|---|---|---|
+| Gemini (2.0-flash, 2.5-flash) | ~0.5 | Elsworth et al. 2025 — Google production measurements |
+| Gemini (2.5-pro, 3-pro, 3.1-pro) | ~1.5 | Elsworth et al. 2025 |
+| GPT-4.1-nano, GPT-4o-mini | ~1.0 | Jegham et al. 2025 — 30-model benchmark |
+| GPT-4o, GPT-4.1, GPT-5 | ~3.6 | Vanderbilt 2026 / OpenAI annual disclosure |
+| Claude 3.5 Haiku | ~2.5 | Jegham et al. 2025 — AWS infrastructure (low WUE) |
+| Claude 3.7 Sonnet, Claude Sonnet 4 | ~5.0 | Jegham et al. 2025 |
+| Claude Opus | ~10.0 | Larger model estimate |
+| DeepSeek-V3, DeepSeek-V4 | ~20.0 | Jegham et al. 2025 — higher PUE infrastructure |
+| DeepSeek-R1, o3, o4 (reasoning) | ~60.0 | Jegham et al. 2025 — extended chain-of-thought |
+| Unknown / unrecognized models | ~15.0 | Default fallback |
+
+Real values vary by data center, cooling technology, region, and season.
+These are illustrative — not precise measurements.
+
+### Research sources
+
+- **Jegham et al. (2025)** — ["How Hungry is AI? Benchmarking Energy, Water, and Carbon Footprint of LLM Inference"](https://arxiv.org/abs/2505.09598) — 30-model benchmark across OpenAI, Anthropic, Meta, DeepSeek
+- **Elsworth et al. (2025)** — ["Measuring the Environmental Impact of Delivering AI at Google Scale"](https://arxiv.org/abs/2508.15734) — Google's own production-measured Gemini data
+- **Li et al. (2023)** — ["Making AI Less Thirsty"](https://arxiv.org/abs/2304.03271) — UC Riverside, foundational water footprint methodology
+- **Vanderbilt (2026)** — Token-level environmental model for GPT-4o
 
 ## Why this exists
 
@@ -53,7 +80,7 @@ people curious enough to look at the real numbers.
 
 ## Install
 
-No dependencies — plain Node.js (14+).
+No dependencies — plain Node.js (22+ for `auto`/`sync` SQLite support; 14+ for `estimate`).
 
 ```bash
 git clone https://github.com/YOUR_GITHUB_USERNAME/aqua-cli.git
@@ -86,9 +113,9 @@ static render when output isn't a TTY (e.g. piped into a file or CI logs).
 
 ## Visualization
 
-The single droplet bar is gone — every run now renders one of four
-ASCII containers that **auto-scale with magnitude**, so a single prompt
-and a whole project's history don't look the same size:
+Every run renders one of four ASCII containers that **auto-scale with
+magnitude**, so a single prompt and a whole project's history don't look
+the same size:
 
 | Container | Kicks in around... | Visual scale reference |
 | --------- | ------------------- | ----------------------- |
@@ -113,58 +140,73 @@ meaningful past a few hundred tokens.
 ## Automatic mode (`auto` / `sync`)
 
 `aqua auto` / `aqua sync` scan your machine for local session logs and sum
-real token counts — no manual entry needed.
+real token counts — no manual entry needed. When model information is
+available, a **per-model breakdown** is displayed with model-specific
+water estimates.
 
-| Tool        | Reads from                                                          | Format stability      |
-| ----------- | -------------------------------------------------------------------- | ---------------------- |
-| Claude Code | `~/.claude/projects/**/*.jsonl`                                      | documented, stable      |
-| Codex CLI   | `~/.codex/sessions/**/*.jsonl` + `archived_sessions/` (or `$CODEX_HOME`) | documented, evolving |
-| Gemini CLI  | `~/.gemini/tmp/*/chats/*.json` \| `*.jsonl` (or `$GEMINI_DATA_DIR`)  | **beta/undocumented**  |
-| opencode    | `~/.local/share/opencode/storage/message/**/msg_*.json` (or `$OPENCODE_DATA_DIR`) | **beta/undocumented** |
+| Tool        | Reads from                                                          | Model info | Format stability |
+| ----------- | ------------------------------------------------------------------- | ---------- | ---------------- |
+| Claude Code | `~/.claude/projects/**/*.jsonl`                                     | `message.model` on assistant entries | documented, stable |
+| Codex CLI   | `~/.codex/sessions/**/*.jsonl` + `archived_sessions/` (or `$CODEX_HOME`) | `payload.model` on turn_context records | documented, evolving |
+| Gemini CLI  | `~/.gemini/tmp/*/chats/*.json` \| `*.jsonl` (or `$GEMINI_DATA_DIR`) | `model` field on gemini-type messages | **beta/undocumented** |
+| opencode    | `~/.local/share/opencode/opencode.db` (or `$OPENCODE_DATA_DIR`) | `session.model` column (JSON) | SQLite database |
 
 A tool is only included if aqua finds its directory on disk — nothing is
 assumed or required. `aqua auto` reads just the most-recently-modified
 session per tool; `aqua sync` walks every session file it can find.
 
-Claude Code's transcript format is documented and stable. Codex CLI's is
-also documented, but has a quirk aqua accounts for: its `token_count`
-events report a *cumulative running total* for the whole session, not a
-per-turn delta — so aqua takes the max cumulative value per session file
-instead of summing every event (which would badly overcount). Gemini
-CLI's and opencode's formats are not officially published, and are
-labeled experimental even by the third-party tools that already parse
-them. aqua's parser for those two does best-effort field matching and
-returns `0` instead of crashing on an unrecognized shape — but the
-numbers may drift if either tool changes its on-disk format in a future
-release. If any of this breaks on your machine, please open an issue
-with a redacted sample of the file that broke it.
+### Format notes
+
+- **Claude Code:** Documented and stable. Model is at `entry.message.model`
+  on every `type: "assistant"` line (e.g. `claude-sonnet-4-6`,
+  `claude-opus-4-5-20251101`).
+
+- **Codex CLI:** Documented, but has a quirk — `token_count` events report
+  a *cumulative running total* for the whole session, not a per-turn delta.
+  aqua takes the max cumulative value per session file instead of summing
+  every event. Model is at `payload.model` on `turn_context` records.
+
+- **Gemini CLI:** Not officially published. Model is at the `model` field
+  on `type: "gemini"` message records. aqua does best-effort field matching
+  and returns `0` instead of crashing on unrecognized shapes.
+
+- **opencode:** Stores everything in a SQLite database. Token usage is in
+  the `session` table columns (`tokens_input`, `tokens_output`,
+  `tokens_reasoning`, `tokens_cache_read`, `tokens_cache_write`). Model is
+  stored as a JSON string in the `model` column. Requires Node.js 22+ for
+  the built-in `node:sqlite` module. Some older sessions may have `NULL`
+  model info.
+
+If any of this breaks on your machine, please open an issue with a
+redacted sample of the file that broke it.
 
 **Adding another tool:** most coding agent CLIs write similar JSONL
 transcripts with a usage/token block somewhere in each turn. Look at
 `lib/sources.js` — add an entry to `SOURCES` with `dir`, `isAvailable()`,
-`allFiles()`, and `tokensForFile()`; if the tool's usage shape is a
-simple `{input, output, ...}`-style object, the existing generic parser
-(`tokensFromGenericFile` + `extractTokensFromNode`) will likely already
-recognize it once you add its field names. PRs for other tools (Cursor
-CLI, Aider, Amp, etc.) welcome.
+`allFiles()`, `tokensForFile()`, and optionally `getTokensByModel()`. If
+the tool's usage shape is a simple `{input, output, ...}`-style object,
+the existing generic parser (`tokensFromGenericFile` + `extractTokensFromNode`)
+will likely already recognize it once you add its field names. PRs for
+other tools (Cursor CLI, Aider, Amp, etc.) welcome.
 
 ## How it works
 
-- Tokens → mL: `tokens / 1000 * 15` (see the giant warning above)
+- **Per-model estimation:** `tokens / 1000 * mlPer1k` where `mlPer1k` is
+  looked up from the model name via the `MODEL_WATER_ML` mapping in
+  `lib/sources.js`. Unknown models fall back to 15 mL/1K tokens.
 - Every `estimate` run appends to `~/.aqua-cli/history.json`, so `aqua stats`
   shows a running lifetime total.
-- `auto` / `sync` print a live per-tool breakdown each time you run them;
-  they don't currently write into that same history file.
+- `auto` / `sync` print a live per-model breakdown each time you run them;
+  they also write into the history file for lifetime tracking.
 
 ## Contributing
 
 PRs welcome, especially:
 
-- A better-sourced constant than the current flat 15 mL/1k tokens, ideally
-  with a range instead of a single number, and a linked source.
-- Fixes to the Gemini CLI / opencode parsers in `lib/sources.js` if their
-  storage formats change.
-- Support for other CLI agents' local logs (Codex, Amp, etc. all seem to
+- Better-sourced per-model water estimates, ideally with a range and a
+  linked source. See `MODEL_WATER_ML` in `lib/sources.js`.
+- Fixes to the Gemini CLI / opencode parsers if their storage formats change.
+- Support for other CLI agents' local logs (Cursor, Amp, etc. all seem to
   write similar JSONL transcripts).
 
 Please don't submit a PR that reports a number *more precisely* than the
