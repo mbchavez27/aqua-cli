@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Local usage-log readers for Claude Code, Gemini CLI, and opencode.
+ * Local usage-log readers for Claude Code, Gemini CLI, opencode, and Codex CLI.
  *
  * Claude Code's JSONL transcript format (~/.claude/projects/**\/*.jsonl,
  * with a `message.usage` block of {input_tokens, output_tokens,
@@ -19,6 +19,18 @@
  * totalTokenCount} usageMetadata shape) and degrade to 0 rather than
  * throwing if a file doesn't match. Expect this to need updates if those
  * tools change their storage format.
+ *
+ * Codex CLI (~/.codex/sessions/**\/*.jsonl and archived_sessions/, or
+ * $CODEX_HOME) writes `token_count` events with real usage data, but with
+ * a quirk: each event is a CUMULATIVE total for the session, not a
+ * per-turn delta, so it needs its own parser rather than the generic
+ * summing one (see tokensFromCodexFile).
+ *
+ * Adding another tool: give it an entry in SOURCES with `dir`,
+ * `isAvailable()`, `allFiles()`, and `tokensForFile()`. If its JSON shape
+ * is a simple per-event {input, output} or {promptTokenCount, ...} style
+ * block, `tokensFromGenericFile` + `extractTokensFromNode` will likely
+ * already handle it — just add the field-name shape it uses.
  */
 
 const fs = require("fs");
@@ -145,6 +157,52 @@ function tokensFromClaudeCodeFile(filePath) {
   return sum;
 }
 
+// --- Codex CLI: JSONL rollout files, but with a quirk. Each `token_count`
+// event reports the CUMULATIVE total for the session so far (confirmed by
+// how the community tool ccusage parses it: it diffs consecutive totals to
+// recover per-turn usage). That means we must NOT sum every event in the
+// file — the last (largest) total_tokens value already IS the session
+// total. We scan every line defensively (rather than assuming events are
+// in order) and take the max total_tokens seen, which is robust either way.
+function tokensFromCodexFile(filePath) {
+  let text;
+  try {
+    text = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return 0;
+  }
+
+  let maxTotal = 0;
+
+  function scanForTokenCount(node) {
+    if (node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) scanForTokenCount(item);
+      return;
+    }
+    if (typeof node.total_tokens === "number") {
+      if (node.total_tokens > maxTotal) maxTotal = node.total_tokens;
+      return; // don't recurse further into a matched usage node
+    }
+    if (typeof node.input_tokens === "number" && typeof node.output_tokens === "number") {
+      const reasoning = typeof node.reasoning_output_tokens === "number" ? node.reasoning_output_tokens : 0;
+      const total = node.input_tokens + node.output_tokens + reasoning;
+      if (total > maxTotal) maxTotal = total;
+      return;
+    }
+    for (const key of Object.keys(node)) scanForTokenCount(node[key]);
+  }
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parsed = readJsonSafe(trimmed);
+    if (parsed) scanForTokenCount(parsed);
+  }
+
+  return maxTotal;
+}
+
 const SOURCES = {
   "claude-code": {
     label: "Claude Code",
@@ -180,6 +238,22 @@ const SOURCES = {
       return walkFiles(path.join(this.dir, "storage", "message"), (name) => name.startsWith("msg_") && name.endsWith(".json"));
     },
     tokensForFile: tokensFromGenericFile,
+  },
+  codex: {
+    label: "Codex CLI",
+    dir: process.env.CODEX_HOME || homeSub(".codex"),
+    isAvailable() {
+      return fs.existsSync(path.join(this.dir, "sessions")) || fs.existsSync(path.join(this.dir, "archived_sessions"));
+    },
+    allFiles() {
+      const out = [];
+      walkFiles(path.join(this.dir, "sessions"), (name) => name.endsWith(".jsonl"), out);
+      walkFiles(path.join(this.dir, "archived_sessions"), (name) => name.endsWith(".jsonl"), out);
+      return out;
+    },
+    // NOTE: unlike the other sources, one Codex file = one session, and
+    // its "total" already IS the session total (see tokensFromCodexFile).
+    tokensForFile: tokensFromCodexFile,
   },
 };
 

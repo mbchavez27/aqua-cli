@@ -98,7 +98,7 @@ async function reportFromSources(mode) {
 
   if (available.length === 0) {
     console.log(
-      `${c.yellow}no local usage logs found${c.reset} for Claude Code, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.gemini/tmp, ~/.local/share/opencode)${c.reset}\n`
+      `${c.yellow}no local usage logs found${c.reset} for Claude Code, Codex CLI, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.codex, ~/.gemini/tmp, ~/.local/share/opencode)${c.reset}\n`
     );
     return;
   }
@@ -141,7 +141,7 @@ function printHelp() {
                                        (glass / bottle / bathtub / pool)
   aqua stats                          show lifetime totals (from "estimate" runs)
   aqua reset                          clear saved history
-  aqua auto                           auto-detect Claude Code / Gemini CLI / opencode,
+  aqua auto                           auto-detect Claude Code / Codex CLI / Gemini CLI / opencode,
                                        read tokens from each tool's CURRENT session
   aqua sync                           same, but sums ALL historical sessions ever logged
 

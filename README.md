@@ -118,6 +118,7 @@ real token counts — no manual entry needed.
 | Tool        | Reads from                                                          | Format stability      |
 | ----------- | -------------------------------------------------------------------- | ---------------------- |
 | Claude Code | `~/.claude/projects/**/*.jsonl`                                      | documented, stable      |
+| Codex CLI   | `~/.codex/sessions/**/*.jsonl` + `archived_sessions/` (or `$CODEX_HOME`) | documented, evolving |
 | Gemini CLI  | `~/.gemini/tmp/*/chats/*.json` \| `*.jsonl` (or `$GEMINI_DATA_DIR`)  | **beta/undocumented**  |
 | opencode    | `~/.local/share/opencode/storage/message/**/msg_*.json` (or `$OPENCODE_DATA_DIR`) | **beta/undocumented** |
 
@@ -125,13 +126,27 @@ A tool is only included if aqua finds its directory on disk — nothing is
 assumed or required. `aqua auto` reads just the most-recently-modified
 session per tool; `aqua sync` walks every session file it can find.
 
-Claude Code's transcript format is documented and stable. Gemini CLI's and
-opencode's are not officially published, and are labeled experimental even
-by the third-party tools that already parse them. aqua's parser for those
-two does best-effort field matching and returns `0` instead of crashing on
-an unrecognized shape — but the numbers may drift if either tool changes
-its on-disk format in a future release. If that happens on your machine,
-please open an issue with a redacted sample of the file that broke it.
+Claude Code's transcript format is documented and stable. Codex CLI's is
+also documented, but has a quirk aqua accounts for: its `token_count`
+events report a *cumulative running total* for the whole session, not a
+per-turn delta — so aqua takes the max cumulative value per session file
+instead of summing every event (which would badly overcount). Gemini
+CLI's and opencode's formats are not officially published, and are
+labeled experimental even by the third-party tools that already parse
+them. aqua's parser for those two does best-effort field matching and
+returns `0` instead of crashing on an unrecognized shape — but the
+numbers may drift if either tool changes its on-disk format in a future
+release. If any of this breaks on your machine, please open an issue
+with a redacted sample of the file that broke it.
+
+**Adding another tool:** most coding agent CLIs write similar JSONL
+transcripts with a usage/token block somewhere in each turn. Look at
+`lib/sources.js` — add an entry to `SOURCES` with `dir`, `isAvailable()`,
+`allFiles()`, and `tokensForFile()`; if the tool's usage shape is a
+simple `{input, output, ...}`-style object, the existing generic parser
+(`tokensFromGenericFile` + `extractTokensFromNode`) will likely already
+recognize it once you add its field names. PRs for other tools (Cursor
+CLI, Aider, Amp, etc.) welcome.
 
 ## How it works
 
