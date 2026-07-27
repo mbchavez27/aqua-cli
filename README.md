@@ -1,14 +1,14 @@
 # aqua-cli 💧
 
 A tiny terminal toy that turns your AI token usage into a **water-footprint
-visualization** — an animated blue bar filling up in your terminal, backed
-by real (if approximate) per-model estimates from published research.
+visualization** — animated ASCII containers with color gradients and wave
+effects, backed by per-model estimates from published research.
 
 It's built to be a fun, low-stakes way into a conversation that's usually
 anything but fun: AI data centers use real water for cooling, the exact
 numbers are contested and mostly undisclosed, and "how much" is genuinely
 hard to answer. This tool doesn't pretend to solve that. It gives you
-*something concrete to look at* — a bar filling up as your token count
+*something concrete to look at* — a container filling up as your token count
 grows — as a prompt to go read the real research, not a replacement for it.
 
 ```
@@ -19,12 +19,25 @@ grows — as a prompt to go read the real research, not a replacement for it.
    ▓█   ▓██▒▒ ▓███▀ ░▒▒█████▓  ▓█   ▓██▒
   water footprint estimator, for fun · v0.1.0
 
-  Model                           Tokens    Water (est.)
-  gemini-2.5-pro              1,200,000     1,800.0 mL
-  deepseek-v4-flash-free        800,000    16,000.0 mL
-  ────────────────────────────────────────────────────
-  Estimated water: 17,800.0 mL
-  ≈ 37 bathtubs · ≈ 27.67% of a backyard pool
+  🔎 Detected: 🌊 opencode
+
+  ┌──────────────────────────────────────────────────────┐
+  │  Model                           Tokens  Water (est.) │
+  ├──────────────────────────────────────────────────────┤
+  │  mimo-v2.5-free             118,262,558  1773938.4 mL │
+  │  deepseek-v4-flash-free      84,895,342  1697906.8 mL │
+  ├──────────────────────────────────────────────────────┤
+  │  Total                      377,496,398  5830304.7 mL │
+  └──────────────────────────────────────────────────────┘
+
+  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  100% filled
+   ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈
+   │≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈│  ← surface waves
+   │████████████████████████████████████│  ← mid blue
+   │████████████████████████████████████│  ← deep blue
+   ╰──────────────────────────────────────╯
+
+  💧 ≈ 1.13 small backyard pools 🏊 · ≈ 28.31% of a backyard pool 🏊
 ```
 
 ## ⚠️ Read this before you take any number seriously
@@ -94,6 +107,18 @@ Or run it without installing:
 node bin/aqua.js help
 ```
 
+### Platform support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| macOS | ✅ Full support | Works out of the box |
+| Linux | ✅ Full support | Works out of the box |
+| Windows | ✅ Full support | Requires Windows 10+ (VT processing enabled automatically) |
+
+On Windows, aqua-cli enables VT (Virtual Terminal) processing at startup
+to support ANSI escape codes. Uses Windows Terminal or modern PowerShell
+for best results with Unicode characters.
+
 ## Usage
 
 ```bash
@@ -108,14 +133,15 @@ aqua auto                           # auto-detect Claude Code / Gemini CLI / ope
 aqua sync                           # same, but sums ALL historical sessions ever logged
 ```
 
-`estimate` runs an animated fill in real terminals; it falls back to a
-static render when output isn't a TTY (e.g. piped into a file or CI logs).
+`estimate` runs an animated fill in real terminals with a progress bar;
+it falls back to a static render when output isn't a TTY (e.g. piped
+into a file or CI logs).
 
 ## Visualization
 
 Every run renders one of four ASCII containers that **auto-scale with
-magnitude**, so a single prompt and a whole project's history don't look
-the same size:
+magnitude**, featuring **color gradients** (dark blue at bottom → light
+blue at surface) and **wave effects** on the water surface:
 
 | Container | Kicks in around... | Visual scale reference |
 | --------- | ------------------- | ----------------------- |
@@ -130,19 +156,35 @@ Force a specific one instead of auto-picking:
 aqua estimate --tokens 500000 --vessel pool
 ```
 
-Alongside the container, every run prints **two dynamically-picked
-comparisons** bracketing the actual number — small counts get teaspoons
-and tablespoons, mid-range counts get toilet flushes and dishwasher
-loads, huge counts get bathtubs and Olympic pools — instead of always
-forcing everything into "fractions of a bottle," which stopped being
-meaningful past a few hundred tokens.
+### Water effects
+
+- **Color gradient**: 3-tone depth shading — deep blue at the bottom,
+  medium blue in the middle, light blue at the surface
+- **Wave surface**: The topmost water row uses `~` or `≈` characters
+  with a highlight color to simulate surface ripples
+- **Bubbles**: During animation, random `○` characters appear in the water
+- **Progress bar**: A `▓▓▓▓░░░░` bar with percentage shows fill progress
+
+### Real-world comparisons
+
+Every run prints **two dynamically-picked comparisons** with emojis,
+bracketing the actual number:
+
+```
+💧 ≈ 1.50 large water bottles (1L) 🫗 · ≈ 50.00% of a bucket of water 🪣
+```
+
+Comparisons span from teaspoons (🥄) to Olympic pools (🏅), including:
+☕ coffee · 🥤 soda · 🍶 water bottles · 🪣 buckets · 🚽 toilet flushes ·
+🌿 watering cans · 🍽️ dishwasher cycles · 🚿 showers · 👕 laundry loads ·
+🛁 bathtubs · 🏊 pools · ♨️ hot tubs · 🚛 tanker trucks
 
 ## Automatic mode (`auto` / `sync`)
 
 `aqua auto` / `aqua sync` scan your machine for local session logs and sum
 real token counts — no manual entry needed. When model information is
-available, a **per-model breakdown** is displayed with model-specific
-water estimates.
+available, a **per-model breakdown** is displayed in a box-drawing table
+with model-specific water estimates.
 
 | Tool        | Reads from                                                          | Model info | Format stability |
 | ----------- | ------------------------------------------------------------------- | ---------- | ---------------- |
@@ -154,6 +196,15 @@ water estimates.
 A tool is only included if aqua finds its directory on disk — nothing is
 assumed or required. `aqua auto` reads just the most-recently-modified
 session per tool; `aqua sync` walks every session file it can find.
+
+### Environment variable overrides
+
+| Tool | Override |
+|------|----------|
+| Claude Code | `CLAUDE_CONFIG_DIR` |
+| Codex CLI | `CODEX_HOME` |
+| Gemini CLI | `GEMINI_DATA_DIR` or `GEMINI_CONFIG_DIR` |
+| opencode | `OPENCODE_DATA_DIR` |
 
 ### Format notes
 
