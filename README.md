@@ -128,9 +128,10 @@ aqua estimate --file ./chat.txt     # same, but reads a file
 aqua stats                          # lifetime totals (saved in ~/.aqua-cli/history.json)
 aqua reset                          # clear saved history
 
-aqua auto                           # auto-detect Claude Code / Gemini CLI / opencode,
+ aqua auto                           # auto-detect Claude Code / Gemini CLI / opencode,
                                      # sum tokens from each tool's CURRENT session
 aqua sync                           # same, but sums ALL historical sessions ever logged
+aqua export -o data.json            # export token data as JSON for aqua-web
 ```
 
 `estimate` runs an animated fill in real terminals with a progress bar;
@@ -239,6 +240,45 @@ the tool's usage shape is a simple `{input, output, ...}`-style object,
 the existing generic parser (`tokensFromGenericFile` + `extractTokensFromNode`)
 will likely already recognize it once you add its field names. PRs for
 other tools (Cursor CLI, Aider, Amp, etc.) welcome.
+
+## Export for aqua-web
+
+`aqua export` dumps your token usage data as JSON, designed to be imported
+into the companion web app [aqua-web](https://github.com/YOUR_GITHUB_USERNAME/aqua-web)
+for a richer visual experience.
+
+```bash
+aqua export                         # JSON to stdout
+aqua export -o data.json            # write to file
+aqua export --mode sync -o data.json  # historical (default) or auto (current session)
+```
+
+**Exported JSON schema:**
+
+```json
+{
+  "version": 1,
+  "exportedAt": "2026-07-27T12:00:00.000Z",
+  "mode": "sync",
+  "totalTokens": 380398365,
+  "totalMl": 5705975.5,
+  "sources": [
+    { "id": "opencode", "label": "opencode", "tokens": 380398365, "files": 1 }
+  ],
+  "modelBreakdown": [
+    { "model": "mimo-v2.5-free", "tokens": 121164525, "mlPer1k": 15 }
+  ],
+  "history": {
+    "totalTokens": 1518381778,
+    "totalMl": 22775726.7,
+    "runCount": 4
+  }
+}
+```
+
+Drag the exported JSON file into aqua-web to see animated container
+visualizations, per-model breakdowns, and real-world comparisons rendered
+in the browser.
 
 ## How it works
 

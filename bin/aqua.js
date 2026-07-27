@@ -190,6 +190,82 @@ async function reportFromSources(mode) {
   });
 }
 
+function exportCmd(args) {
+  const modeIdx = args.indexOf("--mode");
+  const mode = modeIdx !== -1 ? args[modeIdx + 1] : "sync";
+  if (mode !== "sync" && mode !== "auto") {
+    console.error(`${c.yellow}--mode must be "sync" or "auto"${c.reset}`);
+    process.exit(1);
+  }
+
+  const oIdx = args.indexOf("-o");
+  const outFile = oIdx !== -1 ? args[oIdx + 1] : null;
+
+  const detected = sources.detectSources();
+  const available = detected.filter((s) => s.available);
+
+  if (available.length === 0) {
+    console.error(`${c.yellow}no local usage logs found${c.reset}`);
+    process.exit(1);
+  }
+
+  const byModelGetter = mode === "sync" ? sources.historicalTokensByModel : sources.currentSessionTokensByModel;
+  const totalGetter = mode === "sync" ? sources.historicalTokensFor : sources.currentSessionTokensFor;
+
+  let totalTokens = 0;
+  const allModels = new Map();
+  const sourceRows = [];
+
+  for (const s of available) {
+    const { tokens, files } = totalGetter(s.id);
+    totalTokens += tokens;
+    sourceRows.push({ id: s.id, label: s.label, tokens, files });
+
+    const modelData = byModelGetter(s.id);
+    for (const row of modelData) {
+      const mlPer1k = sources.waterMlPer1kForModel(row.model);
+      const existing = allModels.get(row.model);
+      if (existing) {
+        existing.tokens += row.tokens;
+      } else {
+        allModels.set(row.model, { tokens: row.tokens, mlPer1k });
+      }
+    }
+  }
+
+  const modelBreakdown = [...allModels.entries()]
+    .map(([model, data]) => ({ model, tokens: data.tokens, mlPer1k: data.mlPer1k }))
+    .sort((a, b) => b.tokens - a.tokens);
+
+  const totalMl = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
+
+  const hist = loadHistory();
+
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    mode,
+    totalTokens,
+    totalMl,
+    sources: sourceRows,
+    modelBreakdown,
+    history: {
+      totalTokens: hist.totalTokens,
+      totalMl: hist.totalMl,
+      runCount: hist.runs.length,
+    },
+  };
+
+  const json = JSON.stringify(data, null, 2);
+
+  if (outFile) {
+    fs.writeFileSync(outFile, json + "\n");
+    console.log(`${c.green}✅ exported${c.reset} → ${outFile}  (${totalTokens.toLocaleString()} tokens, ${modelBreakdown.length} models)`);
+  } else {
+    process.stdout.write(json + "\n");
+  }
+}
+
 function printHelp() {
   banner();
   console.log(`${c.bold}Usage${c.reset}
@@ -203,6 +279,8 @@ function printHelp() {
   aqua auto                           auto-detect Claude Code / Codex CLI / Gemini CLI / opencode,
                                        read tokens from each tool's CURRENT session
   aqua sync                           same, but sums ALL historical sessions ever logged
+  aqua export [--mode sync|auto] [-o file.json]
+                                     export token data as JSON for aqua-web
 
 ${c.bold}Visualization${c.reset}
   The container auto-scales with magnitude — small counts fill a glass,
@@ -218,6 +296,7 @@ ${c.bold}Examples${c.reset}
   aqua estimate --tokens 500000 --vessel pool
   aqua auto
   aqua sync
+  aqua export -o data.json
 
 ${c.bold}Water estimates${c.reset}
   Per-model water estimates (mL per 1,000 tokens) are approximate ranges
@@ -258,6 +337,11 @@ async function main() {
     const containerUsed = await visuals.animateContainer(hist.totalMl);
     console.log(`${c.dim}(rendered as a ${containerUsed} 🌊)${c.reset}`);
     console.log(`${c.dim}${visuals.pickComparisons(hist.totalMl)} · ${hist.runs.length} run(s) logged${c.reset}\n`);
+    return;
+  }
+
+  if (cmd === "export") {
+    exportCmd(args.slice(1));
     return;
   }
 
