@@ -17,6 +17,22 @@ const path = require("path");
 const sources = require("../lib/sources");
 const visuals = require("../lib/visuals");
 
+// Enable Windows VT processing for ANSI escape codes (Windows 10+)
+if (process.platform === "win32" && process.stdout.isTTY) {
+  try {
+    require("child_process").execSync(
+      'powershell -NoProfile -Command "' +
+        "Add-Type '[DllImport(\"kernel32.dll\")] public static extern IntPtr GetStdHandle(int n); " +
+        "[DllImport(\"kernel32.dll\")] public static extern bool GetConsoleMode(IntPtr h, out uint m); " +
+        "[DllImport(\"kernel32.dll\")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; " +
+        "$h=[IntPtr]::Zero; $m=[uint32]0; " +
+        "$h=[Win32]::GetStdHandle(-11); " +
+        "if([Win32]::GetConsoleMode($h,[ref]$m)){[Win32]::SetConsoleMode($h,$m -bor 4)}\"",
+      { stdio: "ignore", windowsHide: true }
+    );
+  } catch {}
+}
+
 const HOME_DIR = path.join(os.homedir(), ".aqua-cli");
 const HISTORY_FILE = path.join(HOME_DIR, "history.json");
 
@@ -71,25 +87,36 @@ function saveHistory(hist) {
 async function report(tokens, { save = true, label = "", vessel = null, modelBreakdown = null } = {}) {
   const ml = (tokens / 1000) * ML_PER_1K_TOKENS;
 
-  console.log(`${label ? c.dim + label + c.reset + "\n" : ""}${c.bold}Tokens:${c.reset} ${tokens.toLocaleString()}`);
+  console.log(`${label ? c.dim + label + c.reset + "\n" : ""}${c.bold}📊 Tokens:${c.reset} ${tokens.toLocaleString()}`);
 
-  // Per-model breakdown table
+  // Per-model breakdown table with box-drawing characters
   if (modelBreakdown && modelBreakdown.length > 0) {
     const maxModelLen = Math.max(...modelBreakdown.map((r) => r.model.length), 12);
     const numWidth = Math.max(12, String(Math.max(...modelBreakdown.map((r) => r.tokens))).length + 1);
-    console.log(`  ${c.dim}${"Model".padEnd(maxModelLen)}  ${"Tokens".padStart(numWidth)}  ${"Water (est.)".padStart(14)}${c.reset}`);
+    const totalMl = modelBreakdown.reduce((sum, r) => sum + (r.tokens / 1000) * r.mlPer1k, 0);
+    const totalTokens = modelBreakdown.reduce((sum, r) => sum + r.tokens, 0);
+    const w = maxModelLen + numWidth + 18;
+    const sep = "─".repeat(w);
+
+    console.log(`  ${c.cyan}┌${sep}┐${c.reset}`);
+    console.log(`  ${c.cyan}│${c.reset}  ${c.dim}${"Model".padEnd(maxModelLen)}  ${"Tokens".padStart(numWidth)}  ${"Water (est.)".padStart(12)}  ${c.cyan}│${c.reset}`);
+    console.log(`  ${c.cyan}├${sep}┤${c.reset}`);
     for (const row of modelBreakdown) {
       const rowMl = (row.tokens / 1000) * row.mlPer1k;
       console.log(
-        `  ${row.model.padEnd(maxModelLen)}  ${row.tokens.toLocaleString().padStart(numWidth)}  ${rowMl.toFixed(1).padStart(8)} mL`
+        `  ${c.cyan}│${c.reset}  ${row.model.padEnd(maxModelLen)}  ${row.tokens.toLocaleString().padStart(numWidth)}  ${rowMl.toFixed(1).padStart(8)} mL  ${c.cyan}│${c.reset}`
       );
     }
-    console.log(`  ${"─".repeat(maxModelLen + numWidth + 16)}`);
+    console.log(`  ${c.cyan}├${sep}┤${c.reset}`);
+    console.log(
+      `  ${c.cyan}│${c.reset}  ${c.bold}${"Total".padEnd(maxModelLen)}  ${totalTokens.toLocaleString().padStart(numWidth)}  ${totalMl.toFixed(1).padStart(8)} mL  ${c.cyan}│${c.reset}`
+    );
+    console.log(`  ${c.cyan}└${sep}┘${c.reset}`);
   }
 
-  console.log(`${c.bold}Estimated water:${c.reset} ${ml.toFixed(1)} mL`);
+  console.log(`${c.bold}💧 Estimated water:${c.reset} ${ml.toFixed(1)} mL`);
   const containerUsed = await visuals.animateContainer(ml, { containerId: vessel });
-  console.log(`${c.dim}(rendered as a ${containerUsed} — pass --vessel to force glass/bottle/bathtub/pool)${c.reset}`);
+  console.log(`${c.dim}(rendered as a ${containerUsed} 🌊 — pass --vessel to force glass/bottle/bathtub/pool)${c.reset}`);
   console.log(`${c.dim}${visuals.pickComparisons(ml)}${c.reset}`);
 
   if (save) {
@@ -99,7 +126,7 @@ async function report(tokens, { save = true, label = "", vessel = null, modelBre
     hist.runs.push({ ts: new Date().toISOString(), tokens, ml });
     saveHistory(hist);
     console.log(
-      `${c.green}saved${c.reset} — lifetime total: ${hist.totalTokens.toLocaleString()} tokens ≈ ${hist.totalMl.toFixed(1)} mL`
+      `${c.green}✅ saved${c.reset} — lifetime total: ${hist.totalTokens.toLocaleString()} tokens ≈ ${hist.totalMl.toFixed(1)} mL`
     );
   }
   console.log();
@@ -111,7 +138,7 @@ async function reportFromSources(mode) {
 
   if (available.length === 0) {
     console.log(
-      `${c.yellow}no local usage logs found${c.reset} for Claude Code, Codex CLI, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.codex, ~/.gemini/tmp, ~/.local/share/opencode/opencode.db)${c.reset}\n`
+      `${c.yellow}🔍 no local usage logs found${c.reset} for Claude Code, Codex CLI, Gemini CLI, or opencode.\n${c.dim}(checked ~/.claude/projects, ~/.codex, ~/.gemini/tmp, ~/.local/share/opencode/opencode.db)${c.reset}\n`
     );
     return;
   }
@@ -120,7 +147,7 @@ async function reportFromSources(mode) {
   const totalGetter = mode === "sync" ? sources.historicalTokensFor : sources.currentSessionTokensFor;
 
   let totalTokens = 0;
-  const allModels = new Map(); // model -> { tokens, mlPer1k }
+  const allModels = new Map();
   const sourceRows = [];
 
   for (const s of available) {
@@ -140,7 +167,7 @@ async function reportFromSources(mode) {
     }
   }
 
-  console.log(`${c.bold}Detected:${c.reset} ${available.map((s) => s.label).join(", ")}`);
+  console.log(`${c.bold}🔎 Detected:${c.reset} ${available.map((s) => "🌊 " + s.label).join("  ")}`);
   for (const row of sourceRows) {
     console.log(
       `  ${c.dim}${row.label.padEnd(12)}${c.reset} ${row.tokens.toLocaleString().padStart(10)} tokens  ${c.dim}(${row.files} file${row.files === 1 ? "" : "s"})${c.reset}`
@@ -153,13 +180,12 @@ async function reportFromSources(mode) {
     return;
   }
 
-  // Build per-model breakdown sorted by tokens descending
   const modelBreakdown = [...allModels.entries()]
     .map(([model, data]) => ({ model, tokens: data.tokens, mlPer1k: data.mlPer1k }))
     .sort((a, b) => b.tokens - a.tokens);
 
   await report(totalTokens, {
-    label: mode === "sync" ? "combined historical usage, all detected tools" : "combined current-session usage, all detected tools",
+    label: mode === "sync" ? "combined historical usage, all detected tools 📊" : "combined current-session usage, all detected tools 📊",
     modelBreakdown,
   });
 }
@@ -227,10 +253,10 @@ async function main() {
       console.log(`${c.dim}no runs yet — try: aqua estimate --tokens 1000${c.reset}\n`);
       return;
     }
-    console.log(`${c.bold}Lifetime tokens:${c.reset} ${hist.totalTokens.toLocaleString()}`);
-    console.log(`${c.bold}Lifetime water:${c.reset} ${hist.totalMl.toFixed(1)} mL`);
+    console.log(`${c.bold}📊 Lifetime tokens:${c.reset} ${hist.totalTokens.toLocaleString()}`);
+    console.log(`${c.bold}💧 Lifetime water:${c.reset} ${hist.totalMl.toFixed(1)} mL`);
     const containerUsed = await visuals.animateContainer(hist.totalMl);
-    console.log(`${c.dim}(rendered as a ${containerUsed})${c.reset}`);
+    console.log(`${c.dim}(rendered as a ${containerUsed} 🌊)${c.reset}`);
     console.log(`${c.dim}${visuals.pickComparisons(hist.totalMl)} · ${hist.runs.length} run(s) logged${c.reset}\n`);
     return;
   }
@@ -244,7 +270,7 @@ async function main() {
   if (cmd === "reset") {
     ensureHome();
     saveHistory({ totalTokens: 0, totalMl: 0, runs: [] });
-    console.log(`${c.green}history cleared${c.reset}`);
+    console.log(`${c.green}✅ history cleared${c.reset}`);
     return;
   }
 
@@ -303,7 +329,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  process.stdout.write("\x1b[?25h"); // ensure cursor is restored on error
+  if (process.stdout.isTTY) process.stdout.write("\x1b[?25h");
   console.error(`${c.yellow}error:${c.reset}`, err.message);
   process.exit(1);
 });
