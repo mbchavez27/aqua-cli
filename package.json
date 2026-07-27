@@ -1,0 +1,38 @@
+{
+  "name": "aqua-cli",
+  "version": "0.1.0",
+  "description": "A playful terminal tool that turns your AI token usage into an illustrative water-footprint estimate — built to spark conversation about AI and environmental impact, not to be a precise measurement.",
+  "bin": {
+    "aqua": "./bin/aqua.js"
+  },
+  "main": "bin/aqua.js",
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "cli",
+    "ai",
+    "water-footprint",
+    "sustainability",
+    "claude-code",
+    "gemini-cli",
+    "opencode",
+    "token-usage",
+    "fun"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_GITHUB_USERNAME/aqua-cli.git"
+  },
+  "homepage": "https://github.com/YOUR_GITHUB_USERNAME/aqua-cli#readme",
+  "bugs": {
+    "url": "https://github.com/YOUR_GITHUB_USERNAME/aqua-cli/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  }
+}

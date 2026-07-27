@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.DS_Store
+.env
+
+# local test fixtures, if you re-run the fake-home tests from the README
+/tmp/
